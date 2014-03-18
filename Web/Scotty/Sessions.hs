@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Web.Scotty.Sessions
 ( session
-, Backend
+, SessionBackend
+, getSession
+, setSession
 ) where
 
 import Control.Monad.IO.Class (liftIO)
@@ -23,6 +25,9 @@ import Data.String
 import Network.Wai.Internal (Response(ResponseBuilder,ResponseFile,ResponseSource))
 import Network.HTTP.Types (ResponseHeaders)
 
+getSession key req = fst $ fromJust $ Vault.lookup key (vault req)
+setSession key req = snd $ fromJust $ Vault.lookup key (vault req)
+
 newKey = do
         let n = 30
         gen <- newStdGen
@@ -30,10 +35,12 @@ newKey = do
         let numbers = randomRs (0, (length chars - 1)) gen
         return $ BS.pack $ take n $ map (chars!!) numbers
 
-type Backend = ByteString -> (IO (Maybe [(ByteString, ByteString)]), 
-    ([(ByteString, ByteString)] -> IO ()))
+type SessionBackend = ByteString -> 
+                    ( IO (Maybe [(ByteString, ByteString)])
+                    , ([(ByteString, ByteString)] -> IO ())
+                    )
 
-session :: Backend -> Vault.Key ([(ByteString, ByteString)], 
+session :: SessionBackend -> Vault.Key ([(ByteString, ByteString)], 
     ([(ByteString,ByteString)] -> IO ())) -> Middleware
 session backend key app req = do
         let msessid = lookup cookieName =<< cookies

@@ -23,20 +23,24 @@ import Network.Wai.Internal (Response(ResponseBuilder,ResponseFile,ResponseSourc
 import Network.HTTP.Types (ResponseHeaders)
 import Web.Scotty.Sessions
 
-setSessionExpiring :: R.Connection -> ByteString -> Integer -> [(ByteString, ByteString)] -> IO ()
-setSessionExpiring conn key timeout values = R.runRedis conn $ do
+setRedisSessionExpiring :: R.Connection -> ByteString -> Integer -> 
+                                    [(ByteString, ByteString)] -> IO ()
+setRedisSessionExpiring conn key timeout values = R.runRedis conn $ do
     R.del [key]
     forM_ values (\x -> R.hset key (fst x) (snd x))
     R.expire key timeout
     return ()
 
-getSession :: R.Connection -> ByteString -> IO (Maybe [(ByteString, ByteString)])
-getSession conn key = R.runRedis conn $ do
+getRedisSession :: R.Connection -> ByteString -> 
+                                    IO (Maybe [(ByteString, ByteString)])
+getRedisSession conn key = R.runRedis conn $ do
     result <- R.hgetall key
     let output = case result of
                      (Right b) -> Just b
                      _ -> Nothing
     return output
 
-redisBackend :: R.Connection -> Integer -> Backend
-redisBackend conn timeout key = (getSession conn key, setSessionExpiring conn key timeout)
+redisBackend :: R.Connection -> Integer -> SessionBackend
+redisBackend conn timeout key = ( getRedisSession conn key
+                                , setRedisSessionExpiring conn key timeout
+                                )
